@@ -62,8 +62,8 @@ INSERT IGNORE INTO ed_patient_visits (
 
 SELECT
 
-    CONCAT('P', LPAD(n + 1, 4, '0')),
-    CONCAT('V', LPAD(n + 1, 4, '0')),
+    CONCAT('P', LPAD(n, 4, '0')),
+    CONCAT('V', LPAD(n, 4, '0')),
     age,
     chief_complaint,
     arrival_datetime,
@@ -89,7 +89,6 @@ SELECT
     triage_level,
     arrival_mode,
     department,
-
     CASE
         WHEN HOUR(arrival_datetime) BETWEEN 7 AND 14
             THEN 'Day'
@@ -124,7 +123,6 @@ FROM (
 
         SELECT
             n,
-
             18 + MOD(n * 17, 78) AS age,
 
             CASE
@@ -163,7 +161,6 @@ FROM (
             END AS department,
 
             4 + MOD(n * 3, 7) AS nurse_count,
-
             2 + MOD(n * 5, 4) AS provider_count,
 
             CASE
@@ -187,34 +184,31 @@ FROM (
                 + hundreds.d * 100 AS n
 
             FROM
-
                 (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
                  SELECT 2 UNION ALL SELECT 3 UNION ALL
                  SELECT 4 UNION ALL SELECT 5 UNION ALL
                  SELECT 6 UNION ALL SELECT 7 UNION ALL
-                 SELECT 8 UNION ALL SELECT 9) ones
+                 SELECT 8 UNION ALL SELECT 9) AS ones
 
             CROSS JOIN
-
                 (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
                  SELECT 2 UNION ALL SELECT 3 UNION ALL
                  SELECT 4 UNION ALL SELECT 5 UNION ALL
                  SELECT 6 UNION ALL SELECT 7 UNION ALL
-                 SELECT 8 UNION ALL SELECT 9) tens
+                 SELECT 8 UNION ALL SELECT 9) AS tens
 
             CROSS JOIN
-
                 (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
                  SELECT 2 UNION ALL SELECT 3 UNION ALL
                  SELECT 4 UNION ALL SELECT 5 UNION ALL
                  SELECT 6 UNION ALL SELECT 7 UNION ALL
-                 SELECT 8 UNION ALL SELECT 9) hundreds
+                 SELECT 8 UNION ALL SELECT 9) AS hundreds
 
-        ) numbers
+        ) AS numbers
 
-    ) base
+    ) AS base
 
- ) AS generated_data;
+) AS `generated`;
 
 
 -- =====================================================
@@ -239,7 +233,6 @@ LIMIT 10;
 -- 5. DATA QUALITY VALIDATION
 -- =====================================================
 
-
 -- 5A. Verify total records
 
 SELECT
@@ -247,37 +240,26 @@ SELECT
 FROM ed_patient_visits;
 
 
--- 5B. Check for missing values
+-- 5B. Check missing values
 
 SELECT
-
     SUM(patient_id IS NULL) AS missing_patient_id,
-
     SUM(visit_id IS NULL) AS missing_visit_id,
-
     SUM(age IS NULL) AS missing_age,
-
     SUM(arrival_datetime IS NULL) AS missing_arrival,
-
     SUM(triage_datetime IS NULL) AS missing_triage,
-
     SUM(provider_datetime IS NULL) AS missing_provider,
-
     SUM(discharge_datetime IS NULL) AS missing_discharge
-
 FROM ed_patient_visits;
 
 
--- 5C. Check for duplicate visit IDs
+-- 5C. Check duplicate visit IDs
 
 SELECT
     visit_id,
     COUNT(*) AS duplicate_count
-
 FROM ed_patient_visits
-
 GROUP BY visit_id
-
 HAVING COUNT(*) > 1;
 
 
@@ -285,9 +267,7 @@ HAVING COUNT(*) > 1;
 
 SELECT
     COUNT(*) AS invalid_timestamp_records
-
 FROM ed_patient_visits
-
 WHERE arrival_datetime > triage_datetime
    OR triage_datetime > provider_datetime
    OR provider_datetime > discharge_datetime;
@@ -297,9 +277,7 @@ WHERE arrival_datetime > triage_datetime
 
 SELECT
     COUNT(*) AS invalid_age_records
-
 FROM ed_patient_visits
-
 WHERE age < 0
    OR age > 120;
 
@@ -309,11 +287,8 @@ WHERE age < 0
 SELECT
     triage_level,
     COUNT(*) AS encounter_count
-
 FROM ed_patient_visits
-
 GROUP BY triage_level
-
 ORDER BY triage_level;
 
 
@@ -322,11 +297,8 @@ ORDER BY triage_level;
 SELECT
     disposition,
     COUNT(*) AS encounter_count
-
 FROM ed_patient_visits
-
 GROUP BY disposition
-
 ORDER BY encounter_count DESC;
 
 
@@ -336,16 +308,9 @@ SELECT
     nurse_count,
     provider_count,
     COUNT(*) AS encounter_count
-
 FROM ed_patient_visits
-
-GROUP BY
-    nurse_count,
-    provider_count
-
-ORDER BY
-    nurse_count,
-    provider_count;
+GROUP BY nurse_count, provider_count
+ORDER BY nurse_count, provider_count;
 
 
 -- =====================================================
