@@ -214,7 +214,7 @@ FROM (
 
     ) base
 
-) ) AS generated_data;
+ ) AS generated_data;
 
 
 -- =====================================================
