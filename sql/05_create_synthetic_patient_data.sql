@@ -2,13 +2,16 @@
 -- =====================================================
 -- Emergency Department Wait-Time Optimization
 -- File: 05_create_synthetic_patient_data.sql
--- Purpose: Create 1,000 synthetic ED patient encounters
--- Database: MySQL
+-- Purpose: Create and validate 1,000 synthetic ED encounters
+-- Database: MySQL 8.0+
 -- =====================================================
 
 USE emergency_department_analytics;
 
--- 1. Create patient encounters table
+
+-- =====================================================
+-- 1. CREATE PATIENT ENCOUNTERS TABLE
+-- =====================================================
 
 CREATE TABLE IF NOT EXISTS ed_patient_visits (
 
@@ -31,9 +34,13 @@ CREATE TABLE IF NOT EXISTS ed_patient_visits (
 
 );
 
--- 2. Generate 1,000 synthetic patient encounters
+
+-- =====================================================
+-- 2. GENERATE 1,000 SYNTHETIC PATIENT ENCOUNTERS
+-- =====================================================
 
 INSERT IGNORE INTO ed_patient_visits (
+
     patient_id,
     visit_id,
     age,
@@ -50,9 +57,11 @@ INSERT IGNORE INTO ed_patient_visits (
     provider_count,
     disposition,
     insurance_type
+
 )
 
 SELECT
+
     CONCAT('P', LPAD(n + 1, 4, '0')),
     CONCAT('V', LPAD(n + 1, 4, '0')),
     age,
@@ -173,9 +182,12 @@ FROM (
         FROM (
 
             SELECT
-                ones.d + tens.d * 10 + hundreds.d * 100 AS n
+                ones.d
+                + tens.d * 10
+                + hundreds.d * 100 AS n
 
             FROM
+
                 (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
                  SELECT 2 UNION ALL SELECT 3 UNION ALL
                  SELECT 4 UNION ALL SELECT 5 UNION ALL
@@ -183,6 +195,7 @@ FROM (
                  SELECT 8 UNION ALL SELECT 9) ones
 
             CROSS JOIN
+
                 (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
                  SELECT 2 UNION ALL SELECT 3 UNION ALL
                  SELECT 4 UNION ALL SELECT 5 UNION ALL
@@ -190,6 +203,7 @@ FROM (
                  SELECT 8 UNION ALL SELECT 9) tens
 
             CROSS JOIN
+
                 (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
                  SELECT 2 UNION ALL SELECT 3 UNION ALL
                  SELECT 4 UNION ALL SELECT 5 UNION ALL
@@ -202,15 +216,139 @@ FROM (
 
 ) generated;
 
--- 3. Verify the generated dataset
+
+-- =====================================================
+-- 3. VERIFY GENERATED DATASET
+-- =====================================================
 
 SELECT
     COUNT(*) AS total_patient_encounters
 FROM ed_patient_visits;
 
--- 4. Verify patient encounter records
+
+-- =====================================================
+-- 4. REVIEW PATIENT ENCOUNTER RECORDS
+-- =====================================================
 
 SELECT *
 FROM ed_patient_visits
 LIMIT 10;
+
+
+-- =====================================================
+-- 5. DATA QUALITY VALIDATION
+-- =====================================================
+
+
+-- 5A. Verify total records
+
+SELECT
+    COUNT(*) AS total_encounters
+FROM ed_patient_visits;
+
+
+-- 5B. Check for missing values
+
+SELECT
+
+    SUM(patient_id IS NULL) AS missing_patient_id,
+
+    SUM(visit_id IS NULL) AS missing_visit_id,
+
+    SUM(age IS NULL) AS missing_age,
+
+    SUM(arrival_datetime IS NULL) AS missing_arrival,
+
+    SUM(triage_datetime IS NULL) AS missing_triage,
+
+    SUM(provider_datetime IS NULL) AS missing_provider,
+
+    SUM(discharge_datetime IS NULL) AS missing_discharge
+
+FROM ed_patient_visits;
+
+
+-- 5C. Check for duplicate visit IDs
+
+SELECT
+    visit_id,
+    COUNT(*) AS duplicate_count
+
+FROM ed_patient_visits
+
+GROUP BY visit_id
+
+HAVING COUNT(*) > 1;
+
+
+-- 5D. Validate timestamp sequence
+
+SELECT
+    COUNT(*) AS invalid_timestamp_records
+
+FROM ed_patient_visits
+
+WHERE arrival_datetime > triage_datetime
+   OR triage_datetime > provider_datetime
+   OR provider_datetime > discharge_datetime;
+
+
+-- 5E. Validate patient ages
+
+SELECT
+    COUNT(*) AS invalid_age_records
+
+FROM ed_patient_visits
+
+WHERE age < 0
+   OR age > 120;
+
+
+-- 5F. Review triage distribution
+
+SELECT
+    triage_level,
+    COUNT(*) AS encounter_count
+
+FROM ed_patient_visits
+
+GROUP BY triage_level
+
+ORDER BY triage_level;
+
+
+-- 5G. Review patient disposition
+
+SELECT
+    disposition,
+    COUNT(*) AS encounter_count
+
+FROM ed_patient_visits
+
+GROUP BY disposition
+
+ORDER BY encounter_count DESC;
+
+
+-- 5H. Review staffing distribution
+
+SELECT
+    nurse_count,
+    provider_count,
+    COUNT(*) AS encounter_count
+
+FROM ed_patient_visits
+
+GROUP BY
+    nurse_count,
+    provider_count
+
+ORDER BY
+    nurse_count,
+    provider_count;
+
+
+-- =====================================================
+-- END OF SYNTHETIC DATA GENERATION AND VALIDATION
+-- =====================================================
 
