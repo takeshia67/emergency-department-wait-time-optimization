@@ -1,0 +1,216 @@
+
+-- =====================================================
+-- Emergency Department Wait-Time Optimization
+-- File: 05_create_synthetic_patient_data.sql
+-- Purpose: Create 1,000 synthetic ED patient encounters
+-- Database: MySQL
+-- =====================================================
+
+USE emergency_department_analytics;
+
+-- 1. Create patient encounters table
+
+CREATE TABLE IF NOT EXISTS ed_patient_visits (
+
+    patient_id VARCHAR(10) PRIMARY KEY,
+    visit_id VARCHAR(10) UNIQUE,
+    age INT,
+    chief_complaint VARCHAR(100),
+    arrival_datetime DATETIME,
+    triage_datetime DATETIME,
+    provider_datetime DATETIME,
+    discharge_datetime DATETIME,
+    triage_level INT,
+    arrival_mode VARCHAR(30),
+    department VARCHAR(50),
+    `shift` VARCHAR(20),
+    nurse_count INT,
+    provider_count INT,
+    disposition VARCHAR(30),
+    insurance_type VARCHAR(30)
+
+);
+
+-- 2. Generate 1,000 synthetic patient encounters
+
+INSERT IGNORE INTO ed_patient_visits (
+    patient_id,
+    visit_id,
+    age,
+    chief_complaint,
+    arrival_datetime,
+    triage_datetime,
+    provider_datetime,
+    discharge_datetime,
+    triage_level,
+    arrival_mode,
+    department,
+    `shift`,
+    nurse_count,
+    provider_count,
+    disposition,
+    insurance_type
+)
+
+SELECT
+    CONCAT('P', LPAD(n + 1, 4, '0')),
+    CONCAT('V', LPAD(n + 1, 4, '0')),
+    age,
+    chief_complaint,
+    arrival_datetime,
+
+    TIMESTAMPADD(
+        MINUTE,
+        triage_delay,
+        arrival_datetime
+    ),
+
+    TIMESTAMPADD(
+        MINUTE,
+        triage_delay + wait_after_triage,
+        arrival_datetime
+    ),
+
+    TIMESTAMPADD(
+        MINUTE,
+        triage_delay + wait_after_triage + stay_minutes,
+        arrival_datetime
+    ),
+
+    triage_level,
+    arrival_mode,
+    department,
+
+    CASE
+        WHEN HOUR(arrival_datetime) BETWEEN 7 AND 14
+            THEN 'Day'
+        WHEN HOUR(arrival_datetime) BETWEEN 15 AND 22
+            THEN 'Evening'
+        ELSE 'Night'
+    END,
+
+    nurse_count,
+    provider_count,
+    disposition,
+    insurance_type
+
+FROM (
+
+    SELECT
+        base.*,
+
+        5 + MOD(n * 7, 11) AS triage_delay,
+
+        CASE triage_level
+            WHEN 1 THEN 5 + MOD(n * 7, 16)
+            WHEN 2 THEN 15 + MOD(n * 11, 26)
+            WHEN 3 THEN 30 + MOD(n * 13, 41)
+            WHEN 4 THEN 40 + MOD(n * 17, 51)
+            ELSE 50 + MOD(n * 19, 71)
+        END AS wait_after_triage,
+
+        120 + MOD(n * 23, 241) AS stay_minutes
+
+    FROM (
+
+        SELECT
+            n,
+
+            18 + MOD(n * 17, 78) AS age,
+
+            CASE
+                WHEN n < 50 THEN 1
+                WHEN n < 185 THEN 2
+                WHEN n < 359 THEN 3
+                WHEN n < 573 THEN 4
+                ELSE 5
+            END AS triage_level,
+
+            CASE MOD(n, 6)
+                WHEN 0 THEN 'Chest Pain'
+                WHEN 1 THEN 'Abdominal Pain'
+                WHEN 2 THEN 'Shortness of Breath'
+                WHEN 3 THEN 'Headache'
+                WHEN 4 THEN 'Injury'
+                ELSE 'Fever'
+            END AS chief_complaint,
+
+            TIMESTAMPADD(
+                MINUTE,
+                n * 37,
+                '2025-01-01 00:00:00'
+            ) AS arrival_datetime,
+
+            CASE MOD(n, 3)
+                WHEN 0 THEN 'Ambulance'
+                WHEN 1 THEN 'Walk-In'
+                ELSE 'Private Vehicle'
+            END AS arrival_mode,
+
+            CASE MOD(n, 3)
+                WHEN 0 THEN 'Emergency'
+                WHEN 1 THEN 'Fast Track'
+                ELSE 'Observation'
+            END AS department,
+
+            4 + MOD(n * 3, 7) AS nurse_count,
+
+            2 + MOD(n * 5, 4) AS provider_count,
+
+            CASE
+                WHEN n < 789 THEN 'Discharged'
+                WHEN n < 933 THEN 'Admitted'
+                ELSE 'Transferred'
+            END AS disposition,
+
+            CASE MOD(n, 4)
+                WHEN 0 THEN 'Private'
+                WHEN 1 THEN 'Medicare'
+                WHEN 2 THEN 'Medicaid'
+                ELSE 'Self-Pay'
+            END AS insurance_type
+
+        FROM (
+
+            SELECT
+                ones.d + tens.d * 10 + hundreds.d * 100 AS n
+
+            FROM
+                (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
+                 SELECT 2 UNION ALL SELECT 3 UNION ALL
+                 SELECT 4 UNION ALL SELECT 5 UNION ALL
+                 SELECT 6 UNION ALL SELECT 7 UNION ALL
+                 SELECT 8 UNION ALL SELECT 9) ones
+
+            CROSS JOIN
+                (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
+                 SELECT 2 UNION ALL SELECT 3 UNION ALL
+                 SELECT 4 UNION ALL SELECT 5 UNION ALL
+                 SELECT 6 UNION ALL SELECT 7 UNION ALL
+                 SELECT 8 UNION ALL SELECT 9) tens
+
+            CROSS JOIN
+                (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL
+                 SELECT 2 UNION ALL SELECT 3 UNION ALL
+                 SELECT 4 UNION ALL SELECT 5 UNION ALL
+                 SELECT 6 UNION ALL SELECT 7 UNION ALL
+                 SELECT 8 UNION ALL SELECT 9) hundreds
+
+        ) numbers
+
+    ) base
+
+) generated;
+
+-- 3. Verify the generated dataset
+
+SELECT
+    COUNT(*) AS total_patient_encounters
+FROM ed_patient_visits;
+
+-- 4. Verify patient encounter records
+
+SELECT *
+FROM ed_patient_visits
+LIMIT 10;
+
